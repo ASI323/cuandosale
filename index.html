@@ -94,8 +94,8 @@ h1 .line2{background:linear-gradient(90deg,var(--gold),#ff4757,var(--purple));-w
 .card.movie:hover{border-color:rgba(245,200,66,.3)}
 .card.series:hover{border-color:rgba(0,212,255,.3)}
 .card.game:hover{border-color:rgba(176,110,255,.3)}
-.card-poster{width:100%;aspect-ratio:2/3;object-fit:cover;display:block;background:var(--surface2)}
-.card-poster-placeholder{width:100%;aspect-ratio:2/3;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:3rem}
+.card-poster{width:100%;aspect-ratio:3/5;object-fit:cover;display:block;background:var(--surface2)}
+.card-poster-placeholder{width:100%;aspect-ratio:3/5;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:3rem}
 .card-body{padding:14px;flex:1;display:flex;flex-direction:column}
 .card-type{font-size:10px;font-family:var(--mono);font-weight:500;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}
 .card-type.movie{color:var(--gold)}.card-type.series{color:var(--cyan)}.card-type.game{color:var(--purple)}
@@ -124,7 +124,7 @@ h1 .line2{background:linear-gradient(90deg,var(--gold),#ff4757,var(--purple));-w
 .state-sub{font-size:14px;line-height:1.6}
 .loading-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
 .skeleton{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;animation:pulse 1.5s ease-in-out infinite}
-.skeleton-poster{width:100%;aspect-ratio:2/3;background:var(--surface2)}
+.skeleton-poster{width:100%;aspect-ratio:3/5;background:var(--surface2)}
 .skeleton-body{padding:12px}.skeleton-line{height:10px;background:var(--surface2);border-radius:4px;margin-bottom:8px}
 .skeleton-line.short{width:60%}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
@@ -333,7 +333,12 @@ function formatDate(ds) {
 }
 
 function makeCard(item) {
-  const {title,date,poster,type,overview,extra} = item;
+  const title = item.title || item.name || 'Sin título';
+  const date = item.date || null;
+  const poster = item.poster || null;
+  const type = item.type || 'movie';
+  const overview = item.overview || '';
+  const extra = item.extra || {};
   const cd = countdown(date);
   const cdCls = cd.cls==="future" ? `future-${type}` : cd.cls;
   const typeLabel = type==="movie"?"Película":type==="series"?"Serie":"Videojuego";
@@ -395,11 +400,13 @@ async function searchMovies(q) {
 
 async function searchSeries(q) {
   const [r1,r2] = await Promise.all([
-    fetch(`${TMDB_BASE}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(q)}&page=1`).then(r=>r.json()),
+    fetch(`${TMDB_BASE}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(q)}&page=1&append_to_response=next_episode_to_air`).then(r=>r.json()),
     fetch(`${TMDB_BASE}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(q)}&page=2`).then(r=>r.json())
   ]);
-  return [...(r1.results||[]),(r2.results||[])].slice(0,30).map(s=>({
-    title:s.name,date:s.first_air_date,poster:s.poster_path?TMDB_IMG+s.poster_path:null,
+  return [...(r1.results||[]),(r2.results||[])].slice(0,30).map(s=>({ 
+    title:s.name,
+    date:s.next_episode_to_air?.air_date || s.first_air_date,
+    poster:s.poster_path?TMDB_IMG+s.poster_path:null,
     type:"series",overview:s.overview,extra:{rating:s.vote_average?.toFixed(1)}
   }));
 }
@@ -509,7 +516,7 @@ async function loadTrending(){
       fetch(`https://api.rawg.io/api/games?key=${RAWG_API_KEY}&dates=${today},${future}&ordering=-added&page_size=8`).then(r=>r.json())
     ]);
     const movies=(mov.results||[]).sort((a,b)=>b.popularity-a.popularity).slice(0,4).map(m=>({title:m.title,date:m.release_date,poster:m.poster_path?TMDB_IMG+m.poster_path:null,type:"movie",overview:m.overview,extra:{rating:m.vote_average?.toFixed(1)}}));
-    const series=(ser.results||[]).sort((a,b)=>b.popularity-a.popularity).slice(0,4).map(s=>({title:s.name,date:s.first_air_date,poster:s.poster_path?TMDB_IMG+s.poster_path:null,type:"series",overview:s.overview,extra:{rating:s.vote_average?.toFixed(1)}}));
+    const series=(ser.results||[]).sort((a,b)=>b.popularity-a.popularity).slice(0,4).map(s=>({title:s.name,date:s.next_episode_to_air?.air_date||s.first_air_date,poster:s.poster_path?TMDB_IMG+s.poster_path:null,type:"series",overview:s.overview,extra:{rating:s.vote_average?.toFixed(1)}}));
     const games=(gam.results||[]).slice(0,4).map(g=>({title:g.name,date:g.released,poster:g.background_image||null,type:"game",overview:"",extra:{rating:g.rating?g.rating.toFixed(1):null}}));
     const NOW=Date.now();
     const all=[...movies,...series,...games].filter(x=>!x.date||new Date(x.date).getTime()>NOW).sort((a,b)=>{
