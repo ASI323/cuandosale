@@ -444,12 +444,13 @@ async function doSearch(source) {
 
     const NOW = Date.now();
     const results = [...movies,...series,...games].filter(item => {
-      // Remove items with no title or placeholder title
       if(!item.title || item.title === 'Sin título') return false;
-      // Remove items with no date — if date unknown, don't show
       if(!item.date) return false;
-      // Only future
-      return new Date(item.date).getTime() > NOW;
+      const ts = new Date(item.date).getTime();
+      if(ts > NOW) return true; // future: always show
+      // Past: only show if very popular (high vote average)
+      const rating = parseFloat(item.extra?.rating || 0);
+      return rating >= 7.5;
     });
 
     if(results.length===0) { showSection("empty-section"); return; }
@@ -528,7 +529,7 @@ async function loadTrending(){
       const ta=a.date?new Date(a.date).getTime():9999999999999;
       const tb=b.date?new Date(b.date).getTime():9999999999999;
       return ta-tb;
-    }).slice(0,8);
+    }).slice(0,30);
     grid.innerHTML="";
     grid.className="results-grid";
     if(all.length===0){grid.innerHTML='<p style="color:var(--text-dim);font-family:var(--mono);font-size:13px;padding:1rem">Cargando estrenos populares...</p>';return;}
