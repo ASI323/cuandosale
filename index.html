@@ -443,9 +443,14 @@ async function doSearch(source) {
     ]);
 
     const NOW = Date.now();
-    const results = [...movies,...series,...games].filter(item =>
-      !item.date || new Date(item.date).getTime() > NOW
-    );
+    const results = [...movies,...series,...games].filter(item => {
+      // Remove items with no title or placeholder title
+      if(!item.title || item.title === 'Sin título') return false;
+      // Remove items with no date — if date unknown, don't show
+      if(!item.date) return false;
+      // Only future
+      return new Date(item.date).getTime() > NOW;
+    });
 
     if(results.length===0) { showSection("empty-section"); return; }
 
