@@ -460,49 +460,34 @@ async function doSearch() {
   document.getElementById("results-query").textContent = q;
 
   try {
-    const promises = [];
     const noneSelected = !activeFilters.movies && !activeFilters.series && !activeFilters.games;
-    promises.push(activeFilters.movies || noneSelected ? searchMovies(q) : Promise.resolve([]));
-    promises.push(activeFilters.series || noneSelected ? searchSeries(q) : Promise.resolve([]));
-    promises.push(activeFilters.games || noneSelected ? searchGames(q) : Promise.resolve([]));
-
-    const [movies, series, games] = await Promise.all(promises);
-    const all = [...movies, ...series, ...games];
-
-    if(all.length === 0) { showSection("empty-section"); return; }
+    const [movies, series, games] = await Promise.all([
+      activeFilters.movies || noneSelected ? searchMovies(q) : Promise.resolve([]),
+      activeFilters.series || noneSelected ? searchSeries(q) : Promise.resolve([]),
+      activeFilters.games  || noneSelected ? searchGames(q)  : Promise.resolve([])
+    ]);
 
     const NOW = Date.now();
-    const NOISE = /\b(leaked?|leak|mod|fan.?made|fan.?game|unofficial|parody|demo|prototype|concept|moon.?chain|cosmo|archieve|archiv)/i;
-    const qWords = q.toLowerCase().split(/\s+/);
-    const qLetterWords = qWords.filter(w => /[a-záéíóúñ]/i.test(w));
 
-    const finalResults = all.filter(item => {
-      // Remove noise
-      if(NOISE.test(item.title)) return false;
-      // Must contain at least one letter-word from query
-      if(qLetterWords.length > 0) {
-        const t = item.title.toLowerCase();
-        if(!qLetterWords.some(w => t.includes(w))) return false;
-      }
-      // ONLY future releases — strict check
-      if(!item.date) return true; // no date = upcoming, keep
-      return new Date(item.date).getTime() > NOW;
-    });
+    // Keep only future releases (or no date confirmed yet)
+    const results = [...movies, ...series, ...games].filter(item =>
+      !item.date || new Date(item.date).getTime() > NOW
+    );
 
-    if(finalResults.length === 0) { showSection("empty-section"); return; }
+    if(results.length === 0) { showSection("empty-section"); return; }
 
-    // Sort purely by date ascending (closest future first)
-    finalResults.sort((a, b) => {
+    // Sort by date ascending — closest first
+    results.sort((a, b) => {
       const tsA = a.date ? new Date(a.date).getTime() : 9999999999999;
       const tsB = b.date ? new Date(b.date).getTime() : 9999999999999;
       return tsA - tsB;
     });
 
     showSection("results-section");
-    document.getElementById("results-count").textContent = `${finalResults.length} resultados`;
+    document.getElementById("results-count").textContent = `${results.length} resultados`;
     const grid = document.getElementById("results-grid");
     grid.innerHTML = "";
-    all.forEach(item => grid.appendChild(makeCard(item)));
+    results.forEach(item => grid.appendChild(makeCard(item)));
 
   } catch(e) {
     showSection("error-section");
