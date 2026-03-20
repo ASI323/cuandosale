@@ -404,9 +404,11 @@ function closeModalDirect() {
 document.addEventListener("keydown", e => { if(e.key==="Escape") closeModalDirect(); });
 
 async function searchMovies(q) {
-  const r = await fetch(`${TMDB_BASE}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(q)}&language=es-ES&page=1`);
-  const d = await r.json();
-  return (d.results||[]).slice(0,20).map(m => ({
+  const [r1, r2] = await Promise.all([
+    fetch(`${TMDB_BASE}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(q)}&page=1`).then(r=>r.json()),
+    fetch(`${TMDB_BASE}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(q)}&page=2`).then(r=>r.json())
+  ]);
+  return [...(r1.results||[]), ...(r2.results||[])].slice(0,30).map(m => ({
     title: m.title,
     date: m.release_date,
     poster: m.poster_path ? TMDB_IMG+m.poster_path : null,
@@ -417,9 +419,11 @@ async function searchMovies(q) {
 }
 
 async function searchSeries(q) {
-  const r = await fetch(`${TMDB_BASE}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(q)}&language=es-ES&page=1`);
-  const d = await r.json();
-  return (d.results||[]).slice(0,20).map(s => ({
+  const [r1, r2] = await Promise.all([
+    fetch(`${TMDB_BASE}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(q)}&page=1`).then(r=>r.json()),
+    fetch(`${TMDB_BASE}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(q)}&page=2`).then(r=>r.json())
+  ]);
+  return [...(r1.results||[]), ...(r2.results||[])].slice(0,30).map(s => ({
     title: s.name,
     date: s.first_air_date,
     poster: s.poster_path ? TMDB_IMG+s.poster_path : null,
@@ -486,29 +490,28 @@ async function doSearch() {
     const finalResults = filtered.length > 0 ? filtered : all;
 
     // Sort: future first, then by date
-    const _now = new Date();
-    const _ql = q.toLowerCase();
-    const _score = item => {
-      const t = item.title.toLowerCase();
-      if(t === _ql) return 100;
-      if(t.startsWith(_ql)) return 80;
-      if(t.includes(_ql)) return 60;
-      return 0;
-    };
+    const sortNow = Date.now();
     finalResults.sort((a, b) => {
-      const sa = _score(a), sb = _score(b);
-      if(sa !== sb) return sb - sa;
-      const da = a.date ? new Date(a.date) : null;
-      const db = b.date ? new Date(b.date) : null;
-      const af = da && da >= _now;
-      const bf = db && db >= _now;
-      if(af && !bf) return -1;
-      if(!af && bf) return 1;
-      if(af && bf) return da - db;
-      if(!da && !db) return 0;
-      if(!da) return 1;
-      if(!db) return -1;
-      return db - da;
+      const ta = (a.title||'').toLowerCase();
+      const tb = (b.title||'').toLowerCase();
+      const ql = q.toLowerCase();
+      const scoreA = ta === ql ? 3 : ta.startsWith(ql) ? 2 : ta.includes(ql) ? 1 : 0;
+      const scoreB = tb === ql ? 3 : tb.startsWith(ql) ? 2 : tb.includes(ql) ? 1 : 0;
+      if(scoreA !== scoreB) return scoreB - scoreA;
+      const tsA = a.date ? new Date(a.date).getTime() : 0;
+      const tsB = b.date ? new Date(b.date).getTime() : 0;
+      const futA = tsA > sortNow;
+      const futB = tsB > sortNow;
+      // Future items first
+      if(futA && !futB) return -1;
+      if(!futA && futB) return 1;
+      // Both future: closest first (ascending)
+      if(futA && futB) return tsA - tsB;
+      // Both past or no date: most recent first (descending)
+      if(!tsA && !tsB) return 0;
+      if(!tsA) return 1;
+      if(!tsB) return -1;
+      return tsB - tsA;
     });
 
     showSection("results-section");
