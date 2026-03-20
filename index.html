@@ -5,7 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CuandoSale — Fechas de estrenos de películas, series y videojuegos</title>
 <meta name="description" content="Descubrí cuándo sale tu próxima película, serie o videojuego favorito. Fechas de estreno, cuenta regresiva y más.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
+<style>
+  #matrix-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:.07}
+</style>
+
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -153,6 +157,7 @@ footer a{color:var(--text-dim);text-decoration:none}footer a:hover{color:var(--t
 </style>
 </head>
 <body>
+<canvas id="matrix-canvas"></canvas>
 
 <header>
   <a href="/" class="logo">
@@ -333,7 +338,7 @@ function makeCard(item) {
     <div class="card-body">
       <div class="card-type ${type}">${typeLabel}</div>
       <div class="card-title">${title}</div>
-      <div class="card-date">Sale el: ${formatDate(date)}</div>
+      <div class="card-date">${date && new Date(date) < new Date() ? 'Salió el:' : 'Sale el:'} ${formatDate(date)}</div>
       <div class="card-countdown ${cdCls}">${cd.text}</div>
     </div>`;
   div.addEventListener("click", () => openModal(item));
@@ -457,37 +462,36 @@ async function doSearch() {
       }
       return true;
     });
-    // Keep only upcoming releases (future dates or unknown)
-    const onlyFuture = filtered.filter(item => {
-      if(!item.date) return true; // unknown date, keep
-      return new Date(item.date) >= new Date();
-    });
-    const finalResults = onlyFuture.length > 0 ? onlyFuture : filtered.length > 0 ? filtered : all;
+    const finalResults = filtered.length > 0 ? filtered : all;
 
     // Sort: future first, then by date
+    const now = new Date();
+    // Relevance score
+    const ql = q.toLowerCase();
+    function score(item) {
+      const t = item.title.toLowerCase();
+      if(t === ql) return 100;
+      if(t.startsWith(ql)) return 80;
+      if(t.includes(ql)) return 60;
+      return 0;
+    }
     finalResults.sort((a,b) => {
-      const da = a.date ? new Date(a.date) : new Date(0);
-      const db = b.date ? new Date(b.date) : new Date(0);
-      const now = new Date();
-      const af = da >= now, bf = db >= now;
-
-      // Relevance score: exact match > starts with > includes
-      const ql = q.toLowerCase();
-      function score(item) {
-        const t = item.title.toLowerCase();
-        if(t === ql) return 100;
-        if(t.startsWith(ql)) return 80;
-        if(t.includes(ql)) return 60;
-        return 0;
-      }
       const sa = score(a), sb = score(b);
       if(sa !== sb) return sb - sa;
-
-      // Then future first
+      const da = a.date ? new Date(a.date) : null;
+      const db = b.date ? new Date(b.date) : null;
+      const af = da && da >= now, bf = db && db >= now;
+      // Future first, sorted closest to now first
       if(af && !bf) return -1;
       if(!af && bf) return 1;
-      if(af && bf) return da-db;
-      return db-da;
+      if(af && bf) return da - db; // closest future first
+      if(!af && !bf) {
+        if(!da && !db) return 0;
+        if(!da) return 1;
+        if(!db) return -1;
+        return db - da; // most recent past first
+      }
+      return 0;
     });
 
     showSection("results-section");
@@ -501,6 +505,36 @@ async function doSearch() {
     document.getElementById("error-msg").textContent = "Error: " + e.message;
   }
 }
+
+/* ── MATRIX ── */
+(function(){
+  const canvas = document.getElementById('matrix-canvas');
+  const ctx = canvas.getContext('2d');
+  let W, H, cols, drops;
+  const FONT_SIZE = 14;
+  const CHARS = '0123456789';
+  function resize(){
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    cols = Math.floor(W / FONT_SIZE);
+    drops = Array(cols).fill(0).map(() => Math.random() * -50);
+  }
+  function draw(){
+    ctx.fillStyle = 'rgba(8,11,18,0.05)';
+    ctx.fillRect(0,0,W,H);
+    ctx.font = FONT_SIZE + 'px monospace';
+    ctx.fillStyle = 'rgba(52,211,153,0.85)';
+    for(let i = 0; i < cols; i++){
+      const x = i * FONT_SIZE;
+      ctx.fillText(CHARS[Math.floor(Math.random()*CHARS.length)], x, drops[i]*FONT_SIZE);
+      if(drops[i]*FONT_SIZE > H && Math.random() > 0.975) drops[i] = 0;
+      drops[i] += 0.5;
+    }
+  }
+  resize();
+  window.addEventListener('resize', resize);
+  setInterval(draw, 50);
+})();
 </script>
 </body>
 </html>
