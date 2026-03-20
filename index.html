@@ -480,14 +480,15 @@ async function doSearch() {
     
     const filtered = all.filter(item => {
       if(NOISE.test(item.title)) return false;
-      // If query has letter-words, result must contain at least one of them
       if(qLetterWords.length > 0) {
         const t = item.title.toLowerCase();
-        return qLetterWords.some(w => t.includes(w));
+        if(!qLetterWords.some(w => t.includes(w))) return false;
       }
+      // Only future or unknown date
+      if(item.date && new Date(item.date).getTime() <= Date.now()) return false;
       return true;
     });
-    const finalResults = filtered.length > 0 ? filtered : all;
+    const finalResults = filtered.length > 0 ? filtered : [];
 
     // Sort: future first, then by date
     const sortNow = Date.now();
