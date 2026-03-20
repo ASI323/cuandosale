@@ -61,8 +61,8 @@ header{position:relative;z-index:10;padding:1.5rem 2rem;display:flex;align-items
 .search-box:focus-within{border-color:rgba(245,200,66,0.4)}
 .search-input{flex:1;background:none;border:none;color:var(--text);font-size:16px;font-family:var(--body);padding:18px 20px;outline:none}
 .search-input::placeholder{color:var(--text-dim)}
-.search-filters{display:flex;align-items:center;gap:4px;padding:8px;border-left:1px solid var(--border)}
-.filter-btn{background:none;border:1px solid transparent;border-radius:8px;padding:6px 10px;font-size:12px;font-family:var(--mono);cursor:pointer;transition:all .2s;color:var(--text-muted)}
+.search-filters{display:flex;align-items:center;gap:4px}
+.filter-btn{background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:12px 28px;font-size:15px;font-family:var(--body);font-weight:600;cursor:pointer;transition:all .2s;color:var(--text-muted)}
 .filter-btn.active-movies{background:var(--gold-dim);border-color:rgba(245,200,66,0.3);color:var(--gold)}
 .filter-btn.active-series{background:var(--cyan-dim);border-color:rgba(0,212,255,0.3);color:var(--cyan)}
 .filter-btn.active-games{background:var(--purple-dim);border-color:rgba(176,110,255,0.3);color:var(--purple)}
@@ -144,7 +144,7 @@ footer a{color:var(--text-dim);text-decoration:none}footer a:hover{color:var(--t
 
 @media(max-width:600px){
   .hero{padding:3rem 1.5rem 2rem}
-  .search-filters{display:none}
+  
   .results-grid,.loading-grid{grid-template-columns:repeat(2,1fr)}
   .modal-hero{flex-direction:column}
   .modal-poster,.modal-poster-placeholder{width:100%;height:auto}
@@ -167,24 +167,24 @@ footer a{color:var(--text-dim);text-decoration:none}footer a:hover{color:var(--t
 </header>
 
 <section class="hero">
-  <p class="hero-eyebrow">Películas · Series · Videojuegos</p>
   <h1>
     <div class="line1">¿CUÁNDO</div>
     <div class="line2">SALE?</div>
   </h1>
-  <p class="hero-sub">Buscá cualquier película, serie o videojuego y descubrí cuándo sale, cuánto falta y más.</p>
+  <p class="hero-sub">Buscá cualquier película, serie o videojuego y descubrí cuándo sale y cuánto falta.</p>
 
   <div class="search-wrap">
+    <p style="text-align:center;font-size:13px;color:var(--text-dim);font-family:var(--mono);margin-bottom:10px;letter-spacing:.05em">Seleccioná lo que querés buscar</p>
+    <div class="search-filters" style="display:flex;gap:12px;justify-content:center;margin-bottom:16px">
+      <button class="filter-btn" data-filter="movies">🎬 Películas</button>
+      <button class="filter-btn" data-filter="series">📺 Series</button>
+      <button class="filter-btn" data-filter="games">🎮 Juegos</button>
+    </div>
     <div class="search-box">
       <input class="search-input" type="text" id="search-input" placeholder="Buscar... ej: GTA 6, Stranger Things, Dune..." autocomplete="off">
-      <div class="search-filters">
-        <button class="filter-btn active-movies" data-filter="movies" title="Películas">🎬</button>
-        <button class="filter-btn active-series" data-filter="series" title="Series">📺</button>
-        <button class="filter-btn active-games" data-filter="games" title="Juegos">🎮</button>
-      </div>
       <button class="search-btn" onclick="doSearch()">🔍</button>
     </div>
-    <p class="search-hint">Presioná Enter para buscar · Filtrá por tipo con los botones</p>
+    <p class="search-hint">Presioná Enter para buscar</p>
   </div>
 </section>
 
@@ -204,7 +204,7 @@ footer a{color:var(--text-dim);text-decoration:none}footer a:hover{color:var(--t
   <div class="state-box">
     <span class="state-icon">🔭</span>
     <div class="state-title">Sin resultados</div>
-    <p class="state-sub">No encontramos nada para esa búsqueda.<br>Probá con otro título o revisá el filtro de categoría.</p>
+    <p class="state-sub">No encontramos estrenos próximos para esa búsqueda.<br>Puede que ya haya salido o todavía no tenga fecha confirmada.</p>
   </div>
 </section>
 
@@ -247,7 +247,7 @@ const RAWG_API_KEY = "4b7ac1bb6b7144c0bb1e51cc4b47ebfb";
 const TMDB_BASE = "https://api.themoviedb.org/3";
 const TMDB_IMG = "https://image.tmdb.org/t/p/w500";
 
-let activeFilters = {movies:true, series:true, games:true};
+let activeFilters = {movies:false, series:false, games:false};
 
 // Filter buttons
 document.querySelectorAll(".filter-btn").forEach(btn => {
@@ -333,7 +333,7 @@ function makeCard(item) {
     <div class="card-body">
       <div class="card-type ${type}">${typeLabel}</div>
       <div class="card-title">${title}</div>
-      <div class="card-date">${cd.cls === 'past' ? '' : 'Sale el: '}${formatDate(date)}</div>
+      <div class="card-date">Sale el: ${formatDate(date)}</div>
       <div class="card-countdown ${cdCls}">${cd.text}</div>
     </div>`;
   div.addEventListener("click", () => openModal(item));
@@ -431,12 +431,10 @@ async function doSearch() {
 
   try {
     const promises = [];
-    if(activeFilters.movies) promises.push(searchMovies(q));
-    else promises.push(Promise.resolve([]));
-    if(activeFilters.series) promises.push(searchSeries(q));
-    else promises.push(Promise.resolve([]));
-    if(activeFilters.games) promises.push(searchGames(q));
-    else promises.push(Promise.resolve([]));
+    const noneSelected = !activeFilters.movies && !activeFilters.series && !activeFilters.games;
+    promises.push(activeFilters.movies || noneSelected ? searchMovies(q) : Promise.resolve([]));
+    promises.push(activeFilters.series || noneSelected ? searchSeries(q) : Promise.resolve([]));
+    promises.push(activeFilters.games || noneSelected ? searchGames(q) : Promise.resolve([]));
 
     const [movies, series, games] = await Promise.all(promises);
     const all = [...movies, ...series, ...games];
@@ -445,8 +443,26 @@ async function doSearch() {
 
     // Filter irrelevant results (mods, leaks, fan games, etc.)
     const NOISE = /\b(leaked?|leak|mod|fan.?made|fan.?game|unofficial|parody|demo|prototype|concept|moon.?chain|cosmo|archieve|archiv)/i;
-    const filtered = all.filter(item => !NOISE.test(item.title));
-    const finalResults = filtered.length > 0 ? filtered : all;
+    
+    // Filter results that only match because of numbers in the query
+    const qWords = q.toLowerCase().split(/\s+/);
+    const qLetterWords = qWords.filter(w => /[a-záéíóúñ]/i.test(w)); // words with letters
+    
+    const filtered = all.filter(item => {
+      if(NOISE.test(item.title)) return false;
+      // If query has letter-words, result must contain at least one of them
+      if(qLetterWords.length > 0) {
+        const t = item.title.toLowerCase();
+        return qLetterWords.some(w => t.includes(w));
+      }
+      return true;
+    });
+    // Keep only upcoming releases (future dates or unknown)
+    const onlyFuture = filtered.filter(item => {
+      if(!item.date) return true; // unknown date, keep
+      return new Date(item.date) >= new Date();
+    });
+    const finalResults = onlyFuture.length > 0 ? onlyFuture : filtered.length > 0 ? filtered : all;
 
     // Sort: future first, then by date
     finalResults.sort((a,b) => {
