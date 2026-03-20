@@ -493,26 +493,17 @@ async function doSearch() {
     // Sort: future first, then by date
     const sortNow = Date.now();
     finalResults.sort((a, b) => {
+      const tsA = a.date ? new Date(a.date).getTime() : Infinity;
+      const tsB = b.date ? new Date(b.date).getTime() : Infinity;
+      // Future closest first, then unknown date, then past (shouldn't appear but just in case)
+      if(tsA !== tsB) return tsA - tsB;
+      // Same date: more similar name first
+      const ql = q.toLowerCase();
       const ta = (a.title||'').toLowerCase();
       const tb = (b.title||'').toLowerCase();
-      const ql = q.toLowerCase();
-      const scoreA = ta === ql ? 3 : ta.startsWith(ql) ? 2 : ta.includes(ql) ? 1 : 0;
-      const scoreB = tb === ql ? 3 : tb.startsWith(ql) ? 2 : tb.includes(ql) ? 1 : 0;
-      if(scoreA !== scoreB) return scoreB - scoreA;
-      const tsA = a.date ? new Date(a.date).getTime() : 0;
-      const tsB = b.date ? new Date(b.date).getTime() : 0;
-      const futA = tsA > sortNow;
-      const futB = tsB > sortNow;
-      // Future items first
-      if(futA && !futB) return -1;
-      if(!futA && futB) return 1;
-      // Both future: closest first (ascending)
-      if(futA && futB) return tsA - tsB;
-      // Both past or no date: most recent first (descending)
-      if(!tsA && !tsB) return 0;
-      if(!tsA) return 1;
-      if(!tsB) return -1;
-      return tsB - tsA;
+      const sA = ta === ql ? 3 : ta.startsWith(ql) ? 2 : ta.includes(ql) ? 1 : 0;
+      const sB = tb === ql ? 3 : tb.startsWith(ql) ? 2 : tb.includes(ql) ? 1 : 0;
+      return sB - sA;
     });
 
     showSection("results-section");
