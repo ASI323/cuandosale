@@ -423,6 +423,11 @@ async function searchGames(q) {
   } catch(e) { return []; }
 }
 
+// Strip leading articles for better search matching
+function stripArticles(q) {
+  return q.replace(/^(el|la|los|las|un|una|the|a|an|le|les|der|die|das)\s+/i, '').trim();
+}
+
 async function doSearch(source) {
   const q = source==="header"
     ? document.getElementById("header-input").value.trim()
@@ -433,13 +438,14 @@ async function doSearch(source) {
   switchToSearchMode(q);
   showLoading();
   document.getElementById("results-query").textContent = q;
+  const qSearch = stripArticles(q); // strip articles for better matching
 
   try {
     const noneSelected = !activeFilters.movies && !activeFilters.series && !activeFilters.games;
     const [movies, series, games] = await Promise.all([
-      activeFilters.movies||noneSelected ? searchMovies(q) : Promise.resolve([]),
-      activeFilters.series||noneSelected ? searchSeries(q) : Promise.resolve([]),
-      activeFilters.games||noneSelected  ? searchGames(q)  : Promise.resolve([])
+      activeFilters.movies||noneSelected ? searchMovies(qSearch) : Promise.resolve([]),
+      activeFilters.series||noneSelected ? searchSeries(qSearch) : Promise.resolve([]),
+      activeFilters.games||noneSelected  ? searchGames(qSearch)  : Promise.resolve([])
     ]);
 
     const NOW = Date.now();
@@ -512,24 +518,30 @@ function toggleNotify(e,title,date,type){
 async function loadTrending(){
   const grid=document.getElementById("trending-grid");
   if(!grid) return;
-  grid.innerHTML=Array(6).fill(`<div class="skeleton"><div class="skeleton-poster"></div><div class="skeleton-body"><div class="skeleton-line short"></div><div class="skeleton-line"></div></div></div>`).join("");
+  grid.innerHTML=Array(9).fill(`<div class="skeleton"><div class="skeleton-poster"></div><div class="skeleton-body"><div class="skeleton-line short"></div><div class="skeleton-line"></div></div></div>`).join("");
   try {
     const today=new Date().toISOString().split("T")[0];
     const future=new Date(Date.now()+180*86400000).toISOString().split("T")[0];
-    const [mov,ser,gam] = await Promise.all([
+    const [mov1,mov2,ser1,ser2,gam1,gam2] = await Promise.all([
       fetch(`${TMDB_BASE}/movie/upcoming?api_key=${TMDB_API_KEY}&page=1`).then(r=>r.json()),
+      fetch(`${TMDB_BASE}/movie/upcoming?api_key=${TMDB_API_KEY}&page=2`).then(r=>r.json()),
       fetch(`${TMDB_BASE}/tv/on_the_air?api_key=${TMDB_API_KEY}&page=1`).then(r=>r.json()),
-      fetch(`https://api.rawg.io/api/games?key=${RAWG_API_KEY}&dates=${today},${future}&ordering=-added&page_size=8`).then(r=>r.json())
+      fetch(`${TMDB_BASE}/tv/on_the_air?api_key=${TMDB_API_KEY}&page=2`).then(r=>r.json()),
+      fetch(`https://api.rawg.io/api/games?key=${RAWG_API_KEY}&dates=${today},${future}&ordering=-added&page_size=15&page=1`).then(r=>r.json()),
+      fetch(`https://api.rawg.io/api/games?key=${RAWG_API_KEY}&dates=${today},${future}&ordering=-added&page_size=15&page=2`).then(r=>r.json())
     ]);
-    const movies=(mov.results||[]).sort((a,b)=>b.popularity-a.popularity).slice(0,4).map(m=>({title:m.title,date:m.release_date,poster:m.poster_path?TMDB_IMG+m.poster_path:null,type:"movie",overview:m.overview,extra:{rating:m.vote_average?.toFixed(1)}}));
-    const series=(ser.results||[]).sort((a,b)=>b.popularity-a.popularity).slice(0,4).map(s=>({title:s.name,date:s.next_episode_to_air?.air_date||s.first_air_date,poster:s.poster_path?TMDB_IMG+s.poster_path:null,type:"series",overview:s.overview,extra:{rating:s.vote_average?.toFixed(1)}}));
-    const games=(gam.results||[]).slice(0,4).map(g=>({title:g.name,date:g.released,poster:g.background_image||null,type:"game",overview:"",extra:{rating:g.rating?g.rating.toFixed(1):null}}));
     const NOW=Date.now();
-    const all=[...movies,...series,...games].filter(x=>!x.date||new Date(x.date).getTime()>NOW).sort((a,b)=>{
-      const ta=a.date?new Date(a.date).getTime():9999999999999;
-      const tb=b.date?new Date(b.date).getTime():9999999999999;
-      return ta-tb;
-    }).slice(0,30);
+    const movies=[...(mov1.results||[]),...(mov2.results||[])].sort((a,b)=>b.popularity-a.popularity).slice(0,10).map(m=>({title:m.title,date:m.release_date,poster:m.poster_path?TMDB_IMG+m.poster_path:null,type:"movie",overview:m.overview,extra:{rating:m.vote_average?.toFixed(1)}})).filter(x=>x.title&&x.date&&new Date(x.date).getTime()>NOW);
+    const series=[...(ser1.results||[]),...(ser2.results||[])].sort((a,b)=>b.popularity-a.popularity).slice(0,10).map(s=>({title:s.name,date:s.next_episode_to_air?.air_date||s.first_air_date,poster:s.poster_path?TMDB_IMG+s.poster_path:null,type:"series",overview:s.overview,extra:{rating:s.vote_average?.toFixed(1)}})).filter(x=>x.title&&x.date&&new Date(x.date).getTime()>NOW);
+    const games=[...(gam1.results||[]),...(gam2.results||[])].slice(0,10).map(g=>({title:g.name,date:g.released,poster:g.background_image||null,type:"game",overview:"",extra:{rating:g.rating?g.rating.toFixed(1):null}})).filter(x=>x.title&&x.date&&new Date(x.date).getTime()>NOW);
+    // Interleave: movie, series, game...
+    const all=[];
+    const max=Math.max(movies.length,series.length,games.length);
+    for(let i=0;i<max;i++){
+      if(movies[i]) all.push(movies[i]);
+      if(series[i]) all.push(series[i]);
+      if(games[i]) all.push(games[i]);
+    }
     grid.innerHTML="";
     grid.className="results-grid";
     if(all.length===0){grid.innerHTML='<p style="color:var(--text-dim);font-family:var(--mono);font-size:13px;padding:1rem">Cargando estrenos populares...</p>';return;}
