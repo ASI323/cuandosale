@@ -505,15 +505,12 @@ async function doSearch() {
       // Future first, closest to now first
       if(af && !bf) return -1;
       if(!af && bf) return 1;
-      if(af && bf) return da - db; // closest future first
-      // Both past: most recent first (closest to now), oldest last
-      if(!af && !bf) {
-        if(!da && !db) return 0;
-        if(!da) return 1;
-        if(!db) return -1;
-        return db - da; // most recent past first, oldest last
-      }
-      return 0;
+      if(af && bf) return da - db;
+      // Both past: most recent first, oldest last
+      if(!da && !db) return 0;
+      if(!da) return 1;
+      if(!db) return -1;
+      return db - da;
     });
 
     showSection("results-section");
