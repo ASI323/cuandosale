@@ -44,7 +44,7 @@ header{position:relative;z-index:10;padding:1.2rem 2rem;display:flex;align-items
 .header-search.visible{display:flex}
 
 /* ── HERO ── */
-.hero{position:relative;z-index:5;text-align:center;padding:0 2rem;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.hero{position:relative;z-index:5;text-align:center;padding:0 2rem;min-height:55vh;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .hero-sub{font-size:16px;color:var(--text-muted);max-width:480px;margin:0 auto 3rem;line-height:1.6;font-weight:300}
 h1{font-family:var(--display);font-size:clamp(3rem,8vw,7rem);line-height:.95;letter-spacing:.02em;margin-bottom:1.5rem}
 h1 .line1{color:var(--text)}
@@ -525,8 +525,8 @@ async function loadTrending(){
     const [mov1,mov2,ser1,ser2,gam1,gam2] = await Promise.all([
       fetch(`${TMDB_BASE}/movie/upcoming?api_key=${TMDB_API_KEY}&page=1&region=US`).then(r=>r.json()),
       fetch(`${TMDB_BASE}/movie/upcoming?api_key=${TMDB_API_KEY}&page=2&region=US`).then(r=>r.json()),
-      fetch(`${TMDB_BASE}/tv/on_the_air?api_key=${TMDB_API_KEY}&page=1`).then(r=>r.json()),
-      fetch(`${TMDB_BASE}/tv/on_the_air?api_key=${TMDB_API_KEY}&page=2`).then(r=>r.json()),
+      fetch(`${TMDB_BASE}/tv/popular?api_key=${TMDB_API_KEY}&page=1`).then(r=>r.json()),
+      fetch(`${TMDB_BASE}/tv/popular?api_key=${TMDB_API_KEY}&page=2`).then(r=>r.json()),
       fetch(`https://api.rawg.io/api/games?key=${RAWG_API_KEY}&dates=${today},${future}&ordering=-added&page_size=10`).then(r=>r.json()),
       fetch(`https://api.rawg.io/api/games?key=${RAWG_API_KEY}&dates=${today},${future}&ordering=rating&page_size=10`).then(r=>r.json())
     ]);
@@ -534,7 +534,8 @@ async function loadTrending(){
     const seenTitles=new Set();
     const dedup=(arr)=>arr.filter(x=>{if(!x.title||seenTitles.has(x.title))return false;seenTitles.add(x.title);return true;});
     const movies=dedup([...(mov1.results||[]),...(mov2.results||[])].sort((a,b)=>b.popularity-a.popularity).slice(0,10).map(m=>({title:m.title,date:m.release_date,poster:m.poster_path?TMDB_IMG+m.poster_path:null,type:"movie",overview:m.overview,extra:{rating:m.vote_average?.toFixed(1)}})).filter(x=>x.title&&x.date&&new Date(x.date).getTime()>NOW));
-    const series=dedup([...(ser1.results||[]),...(ser2.results||[])].sort((a,b)=>b.popularity-a.popularity).slice(0,10).map(s=>({title:s.name,date:s.next_episode_to_air?.air_date||s.first_air_date,poster:s.poster_path?TMDB_IMG+s.poster_path:null,type:"series",overview:s.overview,extra:{rating:s.vote_average?.toFixed(1)}})).filter(x=>x.title&&x.date&&new Date(x.date).getTime()>NOW));
+    const seriesRaw=[...(ser1.results||[]),...(ser2.results||[])].sort((a,b)=>b.popularity-a.popularity).slice(0,20);
+    const series=dedup(seriesRaw.map(s=>({title:s.name,date:s.next_episode_to_air?.air_date||null,poster:s.poster_path?TMDB_IMG+s.poster_path:null,type:"series",overview:s.overview,extra:{rating:s.vote_average?.toFixed(1)}})).filter(x=>x.title&&x.date&&new Date(x.date).getTime()>NOW).slice(0,10));
     const gameRaw=[...(gam1.results||[]),...(gam2.results||[])];
     const games=dedup(gameRaw.filter((g,i,a)=>a.findIndex(x=>x.name===g.name)===i).slice(0,10).map(g=>({title:g.name,date:g.released,poster:g.background_image||null,type:"game",overview:"",extra:{rating:g.rating?g.rating.toFixed(1):null}})).filter(x=>x.title&&x.date&&new Date(x.date).getTime()>NOW));
     // Strict interleave: always movie, series, game in order
