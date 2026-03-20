@@ -105,6 +105,18 @@ header{position:relative;z-index:10;padding:1.5rem 2rem;display:flex;align-items
 .card-countdown.past{background:rgba(255,255,255,0.04);color:var(--text-dim)}
 .card-countdown.unknown{background:rgba(255,255,255,0.04);color:var(--text-dim)}
 
+
+/* NOTIFY */
+.notify-btn{background:none;border:1px solid var(--border);color:var(--text-dim);padding:5px 12px;border-radius:8px;font-size:11px;font-family:var(--mono);cursor:pointer;transition:all .2s;margin-top:8px;width:100%}
+.notify-btn:hover{border-color:rgba(245,200,66,.4);color:var(--gold)}
+.notify-btn.active{border-color:rgba(52,211,153,.4);color:var(--green);background:rgba(52,211,153,.08)}
+
+/* TRENDING */
+.trending-section{max-width:1100px;margin:0 auto;padding:0 2rem 3rem;position:relative;z-index:5}
+.trending-header{display:flex;align-items:baseline;gap:12px;margin-bottom:1.5rem}
+.trending-title{font-family:var(--display);font-size:22px;letter-spacing:.05em;color:var(--text)}
+.trending-sub{font-size:12px;font-family:var(--mono);color:var(--text-dim)}
+
 /* STATES */
 .state-box{text-align:center;padding:4rem 2rem;color:var(--text-muted)}
 .state-icon{font-size:3rem;margin-bottom:1rem;display:block}
@@ -219,6 +231,14 @@ footer a{color:var(--text-dim);text-decoration:none}footer a:hover{color:var(--t
     <div class="state-title">Error al buscar</div>
     <p class="state-sub" id="error-msg">Hubo un problema con la búsqueda. Intentá de nuevo.</p>
   </div>
+</section>
+
+<section class="trending-section" id="trending-section">
+  <div class="trending-header">
+    <div class="trending-title">🔥 Más esperados</div>
+    <div class="trending-sub">próximos estrenos</div>
+  </div>
+  <div class="results-grid" id="trending-grid"></div>
 </section>
 
 <!-- MODAL -->
@@ -340,6 +360,7 @@ function makeCard(item) {
       <div class="card-title">${title}</div>
       <div class="card-date">${date && new Date(date) < new Date() ? 'Salió el:' : 'Sale el:'} ${formatDate(date)}</div>
       <div class="card-countdown ${cdCls}">${cd.text}</div>
+      ${cd.cls === 'future' ? `<button class="notify-btn" id="notify-${title.replace(/[^a-z0-9]/gi,'_')}" onclick="toggleNotify(event,'${title.replace(/'/g,"\'")}','${date||''}','${type}')">🔔 Avisame cuando salga</button>` : ''}
     </div>`;
   div.addEventListener("click", () => openModal(item));
   return div;
@@ -505,6 +526,139 @@ async function doSearch() {
     document.getElementById("error-msg").textContent = "Error: " + e.message;
   }
 }
+
+
+/* ── NOTIFICACIONES ── */
+let notifyList = JSON.parse(localStorage.getItem('cuandosale_notify') || '[]');
+
+function saveNotify(){ localStorage.setItem('cuandosale_notify', JSON.stringify(notifyList)); }
+
+function toggleNotify(e, title, date, type){
+  e.stopPropagation();
+  const btn = e.target;
+  const exists = notifyList.find(n => n.title === title);
+  if(exists){
+    notifyList = notifyList.filter(n => n.title !== title);
+    btn.textContent = '🔔 Avisame cuando salga';
+    btn.classList.remove('active');
+  } else {
+    if(Notification.permission === 'denied'){
+      alert('Habilitá las notificaciones en tu navegador para usar esta función.');
+      return;
+    }
+    Notification.requestPermission().then(perm => {
+      if(perm === 'granted'){
+        notifyList.push({title, date, type});
+        saveNotify();
+        btn.textContent = '✅ Te avisamos';
+        btn.classList.add('active');
+        new Notification('¡Guardado!', {
+          body: `Te avisaremos cuando salga "${title}"`,
+          icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🎬</text></svg>'
+        });
+      }
+    });
+    return;
+  }
+  saveNotify();
+}
+
+function updateNotifyButtons(){
+  notifyList.forEach(n => {
+    const id = 'notify-' + n.title.replace(/[^a-z0-9]/gi,'_');
+    const btn = document.getElementById(id);
+    if(btn){ btn.textContent = '✅ Te avisamos'; btn.classList.add('active'); }
+  });
+}
+
+// Check if any notify dates have passed
+function checkNotifyDates(){
+  const now = new Date();
+  notifyList.forEach(n => {
+    if(n.date && new Date(n.date) <= now && Notification.permission === 'granted'){
+      new Notification(`¡Ya salió!`, {
+        body: `"${n.title}" ya está disponible`,
+        icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🎬</text></svg>'
+      });
+    }
+  });
+  notifyList = notifyList.filter(n => !n.date || new Date(n.date) > now);
+  saveNotify();
+}
+
+/* ── TRENDING / MÁS ESPERADOS ── */
+async function loadTrending(){
+  try {
+    const noneSelected = !activeFilters.movies && !activeFilters.series && !activeFilters.games;
+    const showMovies = activeFilters.movies || noneSelected;
+    const showSeries = activeFilters.series || noneSelected;
+    const showGames  = activeFilters.games  || noneSelected;
+
+    const promises = [];
+    if(showMovies) promises.push(
+      fetch(`${TMDB_BASE}/movie/upcoming?api_key=${TMDB_API_KEY}&language=es-ES&page=1`)
+        .then(r=>r.json()).then(d=>(d.results||[]).slice(0,6).map(m=>({
+          title:m.title, date:m.release_date,
+          poster:m.poster_path?TMDB_IMG+m.poster_path:null,
+          type:'movie', overview:m.overview,
+          extra:{rating:m.vote_average?.toFixed(1)}
+        })))
+    );
+    if(showSeries) promises.push(
+      fetch(`${TMDB_BASE}/tv/on_the_air?api_key=${TMDB_API_KEY}&language=es-ES&page=1`)
+        .then(r=>r.json()).then(d=>(d.results||[]).slice(0,6).map(s=>({
+          title:s.name, date:s.first_air_date,
+          poster:s.poster_path?TMDB_IMG+s.poster_path:null,
+          type:'series', overview:s.overview,
+          extra:{rating:s.vote_average?.toFixed(1)}
+        })))
+    );
+    if(showGames) promises.push(
+      fetch(`https://api.rawg.io/api/games?key=${RAWG_API_KEY}&dates=${new Date().toISOString().split('T')[0]},${new Date(Date.now()+90*86400000).toISOString().split('T')[0]}&ordering=added&page_size=6`)
+        .then(r=>r.json()).then(d=>(d.results||[]).map(g=>({
+          title:g.name, date:g.released,
+          poster:g.background_image||null,
+          type:'game', overview:'',
+          extra:{rating:g.rating?g.rating.toFixed(1):null,
+            platforms:g.platforms?.map(x=>x.platform.name).slice(0,2).join(', ')||''}
+        })))
+    );
+
+    const results = (await Promise.all(promises)).flat();
+    const now = new Date();
+    const upcoming = results
+      .filter(r => r.date && new Date(r.date) >= now)
+      .sort((a,b) => new Date(a.date) - new Date(b.date))
+      .slice(0,8);
+
+    const grid = document.getElementById('trending-grid');
+    if(!grid) return;
+    grid.innerHTML = '';
+    if(upcoming.length === 0){
+      grid.innerHTML = '<p style="color:var(--text-dim);font-family:var(--mono);font-size:13px">Cargando estrenos...</p>';
+      return;
+    }
+    upcoming.forEach(item => grid.appendChild(makeCard(item)));
+    setTimeout(updateNotifyButtons, 100);
+  } catch(e) {
+    console.warn('Trending error:', e);
+  }
+}
+
+// Hide trending when searching, show when empty
+const origShowSection = window.showSection;
+function showSection(id){
+  const ts = document.getElementById('trending-section');
+  if(ts) ts.style.display = id === 'results-section' ? 'none' : 'block';
+  ["results-section","loading-section","empty-section","error-section"].forEach(s => {
+    document.getElementById(s).style.display = s === id ? "block" : "none";
+  });
+}
+
+// Init
+checkNotifyDates();
+loadTrending();
+
 
 /* ── MATRIX ── */
 (function(){
