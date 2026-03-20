@@ -502,15 +502,16 @@ async function doSearch() {
       const da = a.date ? new Date(a.date) : null;
       const db = b.date ? new Date(b.date) : null;
       const af = da && da >= now, bf = db && db >= now;
-      // Future first, sorted closest to now first
+      // Future first, closest to now first
       if(af && !bf) return -1;
       if(!af && bf) return 1;
       if(af && bf) return da - db; // closest future first
+      // Both past: most recent first (closest to now), oldest last
       if(!af && !bf) {
         if(!da && !db) return 0;
         if(!da) return 1;
         if(!db) return -1;
-        return db - da; // most recent past first
+        return db - da; // most recent past first, oldest last
       }
       return 0;
     });
