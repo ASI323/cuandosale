@@ -406,7 +406,7 @@ document.addEventListener("keydown", e => { if(e.key==="Escape") closeModalDirec
 async function searchMovies(q) {
   const r = await fetch(`${TMDB_BASE}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(q)}&language=es-ES&page=1`);
   const d = await r.json();
-  return (d.results||[]).slice(0,8).map(m => ({
+  return (d.results||[]).slice(0,20).map(m => ({
     title: m.title,
     date: m.release_date,
     poster: m.poster_path ? TMDB_IMG+m.poster_path : null,
@@ -419,7 +419,7 @@ async function searchMovies(q) {
 async function searchSeries(q) {
   const r = await fetch(`${TMDB_BASE}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(q)}&language=es-ES&page=1`);
   const d = await r.json();
-  return (d.results||[]).slice(0,8).map(s => ({
+  return (d.results||[]).slice(0,20).map(s => ({
     title: s.name,
     date: s.first_air_date,
     poster: s.poster_path ? TMDB_IMG+s.poster_path : null,
@@ -431,7 +431,7 @@ async function searchSeries(q) {
 
 async function searchGames(q) {
   try {
-    const r = await fetch(`https://api.rawg.io/api/games?key=${RAWG_API_KEY}&search=${encodeURIComponent(q)}&page_size=8`);
+    const r = await fetch(`https://api.rawg.io/api/games?key=${RAWG_API_KEY}&search=${encodeURIComponent(q)}&page_size=20`);
     const data = await r.json();
     return (data.results||[]).map(g => ({
       title: g.name,
@@ -486,27 +486,25 @@ async function doSearch() {
     const finalResults = filtered.length > 0 ? filtered : all;
 
     // Sort: future first, then by date
-    const now = new Date();
-    // Relevance score
-    const ql = q.toLowerCase();
-    function score(item) {
+    const _now = new Date();
+    const _ql = q.toLowerCase();
+    const _score = item => {
       const t = item.title.toLowerCase();
-      if(t === ql) return 100;
-      if(t.startsWith(ql)) return 80;
-      if(t.includes(ql)) return 60;
+      if(t === _ql) return 100;
+      if(t.startsWith(_ql)) return 80;
+      if(t.includes(_ql)) return 60;
       return 0;
-    }
-    finalResults.sort((a,b) => {
-      const sa = score(a), sb = score(b);
+    };
+    finalResults.sort((a, b) => {
+      const sa = _score(a), sb = _score(b);
       if(sa !== sb) return sb - sa;
       const da = a.date ? new Date(a.date) : null;
       const db = b.date ? new Date(b.date) : null;
-      const af = da && da >= now, bf = db && db >= now;
-      // Future first, closest to now first
+      const af = da && da >= _now;
+      const bf = db && db >= _now;
       if(af && !bf) return -1;
       if(!af && bf) return 1;
       if(af && bf) return da - db;
-      // Both past: most recent first, oldest last
       if(!da && !db) return 0;
       if(!da) return 1;
       if(!db) return -1;
