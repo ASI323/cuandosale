@@ -52,7 +52,10 @@ header{position:relative;z-index:10;padding:1.5rem 2rem;display:flex;align-items
 .tag.games{color:var(--purple);border-color:rgba(176,110,255,0.3);background:var(--purple-dim)}
 
 /* HERO */
-.hero{position:relative;z-index:5;text-align:center;padding:5rem 2rem 3rem}
+.hero.searching{padding:1.5rem 2rem 1rem}
+/* When only 1-2 results, make cards bigger */
+.results-grid.few .card{max-width:420px}
+.results-grid.few{grid-template-columns:repeat(auto-fill,minmax(320px,420px));justify-content:center}
 .hero-eyebrow{font-size:12px;font-family:var(--mono);color:var(--text-muted);letter-spacing:.15em;text-transform:uppercase;margin-bottom:1.2rem}
 .hero h1{font-family:var(--display);font-size:clamp(3rem,8vw,7rem);line-height:.95;letter-spacing:.02em;margin-bottom:1.5rem}
 .hero h1 .line1{color:var(--text)}
@@ -83,6 +86,7 @@ header{position:relative;z-index:10;padding:1.5rem 2rem;display:flex;align-items
 .results-title span{color:var(--text)}
 .results-count{font-size:12px;font-family:var(--mono);color:var(--text-dim)}
 .results-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px}
+.results-grid:has(> :nth-child(1):last-child){grid-template-columns:minmax(280px,420px)}
 
 /* CARD */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;transition:transform .25s,border-color .25s,box-shadow .25s;cursor:pointer;position:relative}
@@ -291,8 +295,10 @@ document.getElementById("search-input").addEventListener("keydown", e => {
 });
 document.getElementById("search-input").addEventListener("input", e => {
   if(!e.target.value.trim()) {
-    const hero = document.querySelector(".hero");
-    if(hero) hero.style.display = "";
+    document.querySelector(".hero h1") && (document.querySelector(".hero h1").style.display = "");
+    document.querySelector(".hero-sub") && (document.querySelector(".hero-sub").style.display = "");
+    document.querySelector(".hero-eyebrow") && (document.querySelector(".hero-eyebrow").style.display = "");
+    document.querySelector(".hero")?.classList.remove("searching");
     showSection("__none__");
     loadTrending();
   }
@@ -467,10 +473,12 @@ async function doSearch() {
 
   showLoading();
   document.getElementById("results-query").textContent = q;
-  // Scroll to top and hide hero
+  // Scroll to top
   window.scrollTo({top:0, behavior:"smooth"});
-  const hero = document.querySelector(".hero");
-  if(hero) hero.style.display = "none";
+  // Hide only title and subtitle, keep search
+  document.querySelector(".hero h1") && (document.querySelector(".hero h1").style.display = "none");
+  document.querySelector(".hero-sub") && (document.querySelector(".hero-sub").style.display = "none");
+  document.querySelector(".hero-eyebrow") && (document.querySelector(".hero-eyebrow").style.display = "none");
 
   try {
     const noneSelected = !activeFilters.movies && !activeFilters.series && !activeFilters.games;
@@ -500,6 +508,8 @@ async function doSearch() {
     document.getElementById("results-count").textContent = `${results.length} resultados`;
     const grid = document.getElementById("results-grid");
     grid.innerHTML = "";
+    grid.className = results.length <= 3 ? "results-grid few" : "results-grid";
+    document.querySelector(".hero")?.classList.add("searching");
     results.forEach(item => grid.appendChild(makeCard(item)));
 
   } catch(e) {
