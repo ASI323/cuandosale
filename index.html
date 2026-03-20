@@ -234,22 +234,19 @@ footer a{color:var(--text-dim);text-decoration:none}footer a:hover{color:var(--t
 </div>
 
 <footer>
-  <p>© 2025 CuandoSale · Datos: <a href="https://www.themoviedb.org" target="_blank">TMDB</a> · <a href="https://www.igdb.com" target="_blank">IGDB</a></p>
+  <p>© 2025 CuandoSale · Datos: <a href="https://www.themoviedb.org" target="_blank">TMDB</a> · <a href="https://rawg.io" target="_blank">RAWG</a></p>
 </footer>
 
 <script>
 // ═══════════════════════════════════════════════
 // ⚠️  REEMPLAZÁ ESTAS CLAVES CON LAS TUYAS
 const TMDB_API_KEY = "a9b53d8ec47a734ecb40418945912b91";
-const TWITCH_CLIENT_ID = "yyk69ektttqx7jc76l7c4xi7oh4sy7";
-const TWITCH_CLIENT_SECRET = "mkvoch2kym093nma0ablvpl17lb8l2";
+const RAWG_API_KEY = "4b7ac1bb6b7144c0bb1e51cc4b47ebfb";
 // ═══════════════════════════════════════════════
 
 const TMDB_BASE = "https://api.themoviedb.org/3";
 const TMDB_IMG = "https://image.tmdb.org/t/p/w500";
-const IGDB_BASE = "https://api.igdb.com/v4";
 
-let igdbToken = null;
 let activeFilters = {movies:true, series:true, games:true};
 
 // Filter buttons
@@ -287,19 +284,7 @@ function showLoading() {
     </div>`).join("");
 }
 
-// IGDB token
-async function getIGDBToken() {
-  if(igdbToken) return igdbToken;
-  try {
-    const res = await fetch(
-      `https://id.twitch.tv/oauth2/token?client_id=${TWITCH_CLIENT_ID}&client_secret=${TWITCH_CLIENT_SECRET}&grant_type=client_credentials`,
-      {method:"POST"}
-    );
-    const data = await res.json();
-    igdbToken = data.access_token;
-    return igdbToken;
-  } catch(e) { return null; }
-}
+
 
 function countdown(dateStr) {
   if(!dateStr) return {text:"Fecha por confirmar", cls:"unknown"};
@@ -419,25 +404,19 @@ async function searchSeries(q) {
 }
 
 async function searchGames(q) {
-  const token = await getIGDBToken();
-  if(!token) return [];
   try {
-    const r = await fetch("https://api.igdb.com/v4/games", {
-      method:"POST",
-      headers:{"Client-ID":TWITCH_CLIENT_ID,"Authorization":`Bearer ${token}`,"Content-Type":"text/plain"},
-      body:`search "${q}"; fields name,first_release_date,cover.url,summary,genres.name,platforms.name,rating; limit 8;`
-    });
+    const r = await fetch(`https://api.rawg.io/api/games?key=${RAWG_API_KEY}&search=${encodeURIComponent(q)}&page_size=8`);
     const data = await r.json();
-    return (data||[]).map(g => ({
+    return (data.results||[]).map(g => ({
       title: g.name,
-      date: g.first_release_date ? new Date(g.first_release_date*1000).toISOString().split("T")[0] : null,
-      poster: g.cover?.url ? "https:"+g.cover.url.replace("t_thumb","t_cover_big") : null,
+      date: g.released||null,
+      poster: g.background_image||null,
       type: "game",
-      overview: g.summary||"",
+      overview: "",
       extra: {
-        rating: g.rating ? (g.rating/10).toFixed(1) : null,
+        rating: g.rating ? g.rating.toFixed(1) : null,
         genres: g.genres?.map(x=>x.name).join(", ")||"",
-        platforms: g.platforms?.map(x=>x.name).slice(0,3).join(", ")||""
+        platforms: g.platforms?.map(x=>x.platform.name).slice(0,3).join(", ")||""
       }
     }));
   } catch(e) { return []; }
