@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://cuandosale.com.ar/sitemap.xml
